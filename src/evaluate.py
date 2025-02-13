@@ -1,14 +1,28 @@
 import cv2
 import numpy as np
 import os
+import time
 from sklearn.metrics import precision_score, recall_score, accuracy_score
 
-GROUND_TRUTH_DIR = "data/ground_truth"  # Diretório contendo as máscaras reais
-PROCESSED_BASE_DIR = "data/processed"  # Diretório com as segmentações geradas
+# Obtém o caminho absoluto do diretório onde este script está localizado
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Caminhos absolutos para os diretórios necessários
+GROUND_TRUTH_DIR = os.path.join(BASE_DIR, "../data/ground_truth")
+PROCESSED_BASE_DIR = os.path.join(BASE_DIR, "../data/processed")
+RESULTS_DIR = os.path.join(BASE_DIR, "../data/results")  # Novo diretório para salvar os resultados
+
+# Criar a pasta de resultados caso não exista
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
 def load_images_from_folder(folder):
     """Carrega todas as imagens binárias de um diretório."""
     images = {}
+    
+    if not os.path.exists(folder):
+        print(f"[ERRO] Diretório não encontrado: {folder}")
+        return images
+
     for filename in sorted(os.listdir(folder)):  
         if filename.endswith(".png"):
             img_path = os.path.join(folder, filename)
@@ -21,6 +35,7 @@ def load_images_from_folder(folder):
 def compute_metrics(gt_images, predicted_images):
     """Calcula métricas de avaliação (Acurácia, Precisão, Recall, IoU)."""
     accuracies, precisions, recalls, ious = [], [], [], []
+    per_frame_results = []
 
     for filename in gt_images:
         if filename in predicted_images:
@@ -53,26 +68,44 @@ def compute_metrics(gt_images, predicted_images):
             recalls.append(recall)
             ious.append(iou)
 
-            print(f"[INFO] {filename}: Acc={acc:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, IoU={iou:.4f}")
+            per_frame_results.append(f"{filename}: Acc={acc:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, IoU={iou:.4f}")
 
-    # Resultados médios
+    # Retorna as métricas médias e os resultados por frame
     return {
-        "Accuracy": np.mean(accuracies),
-        "Precision": np.mean(precisions),
-        "Recall": np.mean(recalls),
-        "IoU": np.mean(ious)
-    }
+        "Accuracy": np.mean(accuracies) if accuracies else 0,
+        "Precision": np.mean(precisions) if precisions else 0,
+        "Recall": np.mean(recalls) if recalls else 0,
+        "IoU": np.mean(ious) if ious else 0
+    }, per_frame_results
+
+def save_results_to_file(metrics, per_frame_results, elapsed_time):
+    """Salva as métricas em um arquivo de texto com UTF-8 para evitar erros no Windows."""
+    results_file = os.path.join(RESULTS_DIR, "evaluation_results.txt")
+
+    with open(results_file, "w", encoding="utf-8") as f:  # Adicionado encoding UTF-8
+        f.write("==== MÉTRICAS POR FRAME ====\n")
+        for line in per_frame_results:
+            f.write(line + "\n")
+
+        f.write("\n==== MÉTRICAS GERAIS ====\n")
+        for key, value in metrics.items():
+            f.write(f"{key}: {value:.4f}\n")
+
+        f.write(f"\n[INFO] Tempo total de avaliação: {elapsed_time:.2f} segundos\n")
+
+    print(f"\n[INFO] Resultados salvos em: {results_file}")
 
 def evaluate_segmentation(video_name):
     """Executa a avaliação comparando segmentações geradas com a ground truth."""
-    processed_dir = os.path.join(PROCESSED_BASE_DIR, video_name)
-    
+    processed_dir = os.path.join(PROCESSED_BASE_DIR, video_name, "masks")  # Agora busca na pasta 'masks'
+
+    # Verifica se os diretórios existem
     if not os.path.exists(GROUND_TRUTH_DIR):
         print("[ERRO] Diretório da ground truth não encontrado!")
         return
     
     if not os.path.exists(processed_dir):
-        print("[ERRO] Diretório da segmentação processada não encontrado!")
+        print(f"[ERRO] Diretório das máscaras segmentadas não encontrado: {processed_dir}")
         return
 
     print(f"[INFO] Avaliando segmentação para o vídeo: {video_name}")
@@ -80,11 +113,30 @@ def evaluate_segmentation(video_name):
     gt_images = load_images_from_folder(GROUND_TRUTH_DIR)
     pred_images = load_images_from_folder(processed_dir)
 
-    metrics = compute_metrics(gt_images, pred_images)
+    if not gt_images:
+        print("[ERRO] Nenhuma imagem encontrada na ground truth!")
+        return
+
+    if not pred_images:
+        print("[ERRO] Nenhuma imagem encontrada na segmentação gerada!")
+        return
+
+    # Inicia a contagem do tempo
+    start_time = time.time()
+
+    metrics, per_frame_results = compute_metrics(gt_images, pred_images)
+
+    end_time = time.time()  # Finaliza a contagem do tempo
+    elapsed_time = end_time - start_time
 
     print("\n==== MÉTRICAS GERAIS ====")
     for key, value in metrics.items():
         print(f"{key}: {value:.4f}")
+
+    print(f"\n[INFO] Tempo total de avaliação: {elapsed_time:.2f} segundos")
+
+    # Salvar resultados no arquivo
+    save_results_to_file(metrics, per_frame_results, elapsed_time)
 
     return metrics
 

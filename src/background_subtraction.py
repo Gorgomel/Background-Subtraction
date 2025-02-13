@@ -2,9 +2,14 @@ import cv2
 import numpy as np
 import os
 import time
+import shutil  # Para remover diretórios vazios
 
-# Diretório base onde as imagens processadas serão armazenadas
-BASE_PROCESSED_DIR = "data/processed"
+# Obtém o caminho absoluto da pasta onde o script está rodando
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Caminhos absolutos baseados na estrutura do projeto
+BASE_PROCESSED_DIR = os.path.join(BASE_DIR, "../data/processed")
+BASE_RAW_DIR = os.path.join(BASE_DIR, "../data/raw")
 
 def create_output_directory(video_name):
     """
@@ -16,21 +21,27 @@ def create_output_directory(video_name):
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-        return output_folder
 
-    # Se a pasta já existe, cria versões numeradas (_1, _2, etc.)
-    version = 1
-    while True:
-        new_folder = f"{output_folder}_{version}"
-        if not os.path.exists(new_folder):
-            os.makedirs(new_folder)
-            return new_folder
-        version += 1
+    masks_folder = os.path.join(output_folder, "masks")
+    contours_folder = os.path.join(output_folder, "contours")
+
+    os.makedirs(masks_folder, exist_ok=True)
+    os.makedirs(contours_folder, exist_ok=True)
+
+    return output_folder, masks_folder, contours_folder
+
+def delete_empty_directory(directory):
+    """
+    Se a pasta estiver vazia após o processamento, excluí-la.
+    """
+    if os.path.exists(directory) and not os.listdir(directory):
+        print(f"[INFO] Nenhuma imagem foi salva. Excluindo a pasta vazia: {directory}")
+        shutil.rmtree(directory)
 
 def background_subtraction(video_path):
     print(f"[INFO] Iniciando processamento do vídeo: {video_path}")
 
-    output_folder = create_output_directory(video_path)
+    output_folder, masks_folder, contours_folder = create_output_directory(video_path)
     print(f"[INFO] Frames serão salvos em: {output_folder}")
 
     start_time = time.time()
@@ -44,6 +55,8 @@ def background_subtraction(video_path):
     backSub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=35, detectShadows=True)
 
     frame_count = 0
+    saved_masks = 0  # Contador de imagens de máscara salvas
+    saved_contours = 0  # Contador de imagens de contornos salvas
     prev_frame = None
 
     while True:
@@ -96,9 +109,17 @@ def background_subtraction(video_path):
         cv2.imshow("Máscara de Fundo", fg_mask)
         cv2.imshow("Contornos Detectados", frame_contours)
 
-        # Salvar frame processado
-        frame_name = os.path.join(output_folder, f"frame_{frame_count}.png")
-        cv2.imwrite(frame_name, fg_mask)
+        # Salvar frame segmentado (máscara binária)
+        if np.count_nonzero(fg_mask) > 0:
+            mask_filename = os.path.join(masks_folder, f"frame_{frame_count}.png")
+            cv2.imwrite(mask_filename, fg_mask)
+            saved_masks += 1  # Contabiliza imagens de máscara salvas
+
+        # Salvar frame com contornos desenhados
+        if len(filtered_contours) > 0:
+            contours_filename = os.path.join(contours_folder, f"frame_{frame_count}.png")
+            cv2.imwrite(contours_filename, frame_contours)
+            saved_contours += 1  # Contabiliza imagens de contornos salvas
 
         if cv2.waitKey(30) & 0xFF == ord('q'):
             print("[INFO] Interrompido pelo usuário.")
@@ -107,11 +128,18 @@ def background_subtraction(video_path):
     cap.release()
     cv2.destroyAllWindows()
 
+    # Verificar se nenhuma imagem foi salva e excluir as pastas vazias
+    if saved_masks == 0 and saved_contours == 0:
+        delete_empty_directory(output_folder)
+    elif saved_masks == 0:
+        delete_empty_directory(masks_folder)
+    elif saved_contours == 0:
+        delete_empty_directory(contours_folder)
+
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print(f"[INFO] Processamento concluído. Frames salvos em {output_folder}.")
-    print(f"[INFO] Tempo total de processamento: {elapsed_time:.2f} segundos.")
+    print(f"[INFO] Processamento concluído. Tempo total: {elapsed_time:.2f} segundos.")
 
 if __name__ == "__main__":
-    video_path = "data/raw/reconstructed_video.mp4"
+    video_path = os.path.join(BASE_RAW_DIR, "reconstructed_video.mp4")
     background_subtraction(video_path)

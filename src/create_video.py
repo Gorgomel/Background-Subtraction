@@ -1,9 +1,11 @@
 import cv2
 import os
 
-# Diretórios para os frames e o vídeo de saída
-FRAMES_DIR = "data/raw/frames"
-OUTPUT_VIDEO = "data/raw/reconstructed_video.mp4"
+# Obtém o caminho absoluto do diretório do script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "../data/raw")
+FRAMES_DIR = os.path.join(DATA_DIR, "frames")
+OUTPUT_VIDEO = os.path.join(DATA_DIR, "reconstructed_video.mp4")
 
 # Criar o diretório de frames caso não exista
 os.makedirs(FRAMES_DIR, exist_ok=True)
@@ -12,7 +14,7 @@ os.makedirs(FRAMES_DIR, exist_ok=True)
 frames = sorted([f for f in os.listdir(FRAMES_DIR) if f.endswith((".jpg", ".png"))])
 
 if not frames:
-    print("[ERRO] Nenhuma imagem encontrada em data/raw/frames/")
+    print(f"[ERRO] Nenhuma imagem encontrada em {FRAMES_DIR}")
     exit()
 
 # Carregar um frame para obter as dimensões do vídeo
