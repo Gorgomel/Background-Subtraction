@@ -4,15 +4,12 @@ import os
 import time
 from sklearn.metrics import precision_score, recall_score, accuracy_score
 
-# Obtém o caminho absoluto do diretório onde este script está localizado
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Caminhos absolutos para os diretórios necessários
 GROUND_TRUTH_DIR = os.path.join(BASE_DIR, "../data/ground_truth")
 PROCESSED_BASE_DIR = os.path.join(BASE_DIR, "../data/processed")
-RESULTS_DIR = os.path.join(BASE_DIR, "../data/results")  # Novo diretório para salvar os resultados
+RESULTS_DIR = os.path.join(BASE_DIR, "../data/results")  
 
-# Criar a pasta de resultados caso não exista
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 def load_images_from_folder(folder):
@@ -20,7 +17,7 @@ def load_images_from_folder(folder):
     images = {}
     
     if not os.path.exists(folder):
-        print(f"[ERRO] Diretório não encontrado: {folder}")
+        print(f"Erro. Diretório não encontrado: {folder}")
         return images
 
     for filename in sorted(os.listdir(folder)):  
@@ -82,7 +79,7 @@ def save_results_to_file(metrics, per_frame_results, elapsed_time):
     """Salva as métricas em um arquivo de texto com UTF-8 para evitar erros no Windows."""
     results_file = os.path.join(RESULTS_DIR, "evaluation_results.txt")
 
-    with open(results_file, "w", encoding="utf-8") as f:  # Adicionado encoding UTF-8
+    with open(results_file, "w", encoding="utf-8") as f: 
         f.write("==== MÉTRICAS POR FRAME ====\n")
         for line in per_frame_results:
             f.write(line + "\n")
@@ -91,55 +88,52 @@ def save_results_to_file(metrics, per_frame_results, elapsed_time):
         for key, value in metrics.items():
             f.write(f"{key}: {value:.4f}\n")
 
-        f.write(f"\n[INFO] Tempo total de avaliação: {elapsed_time:.2f} segundos\n")
+        f.write(f"\nTempo total de avaliação: {elapsed_time:.2f} segundos\n")
 
-    print(f"\n[INFO] Resultados salvos em: {results_file}")
+    print(f"\nResultados salvos em: {results_file}")
 
 def evaluate_segmentation(video_name):
     """Executa a avaliação comparando segmentações geradas com a ground truth."""
-    processed_dir = os.path.join(PROCESSED_BASE_DIR, video_name, "masks")  # Agora busca na pasta 'masks'
+    processed_dir = os.path.join(PROCESSED_BASE_DIR, video_name, "masks")  
 
-    # Verifica se os diretórios existem
     if not os.path.exists(GROUND_TRUTH_DIR):
-        print("[ERRO] Diretório da ground truth não encontrado!")
+        print("Erro. Diretório da ground truth não encontrado!")
         return
     
     if not os.path.exists(processed_dir):
-        print(f"[ERRO] Diretório das máscaras segmentadas não encontrado: {processed_dir}")
+        print(f"Erro. Diretório das máscaras segmentadas não encontrado: {processed_dir}")
         return
 
-    print(f"[INFO] Avaliando segmentação para o vídeo: {video_name}")
+    print(f"Avaliando segmentação para o vídeo: {video_name}")
     
     gt_images = load_images_from_folder(GROUND_TRUTH_DIR)
     pred_images = load_images_from_folder(processed_dir)
 
     if not gt_images:
-        print("[ERRO] Nenhuma imagem encontrada na ground truth!")
+        print("Erro. Nenhuma imagem encontrada na ground truth!")
         return
 
     if not pred_images:
-        print("[ERRO] Nenhuma imagem encontrada na segmentação gerada!")
+        print("Erro. Nenhuma imagem encontrada na segmentação gerada!")
         return
-
-    # Inicia a contagem do tempo
+    
     start_time = time.time()
 
     metrics, per_frame_results = compute_metrics(gt_images, pred_images)
 
-    end_time = time.time()  # Finaliza a contagem do tempo
+    end_time = time.time()  
     elapsed_time = end_time - start_time
 
     print("\n==== MÉTRICAS GERAIS ====")
     for key, value in metrics.items():
         print(f"{key}: {value:.4f}")
 
-    print(f"\n[INFO] Tempo total de avaliação: {elapsed_time:.2f} segundos")
+    print(f"\nTempo total de avaliação: {elapsed_time:.2f} segundos")
 
-    # Salvar resultados no arquivo
     save_results_to_file(metrics, per_frame_results, elapsed_time)
 
     return metrics
 
 if __name__ == "__main__":
-    video_name = "reconstructed_video"  # Nome do vídeo sem extensão
+    video_name = "reconstructed_video" 
     evaluate_segmentation(video_name)
