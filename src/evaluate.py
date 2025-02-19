@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 import time
-from sklearn.metrics import precision_score, recall_score, accuracy_score
+from sklearn.metrics import precision_score, recall_score, accuracy_score, f1_score
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -30,8 +30,8 @@ def load_images_from_folder(folder):
     return images
 
 def compute_metrics(gt_images, predicted_images):
-    """Calcula métricas de avaliação (Acurácia, Precisão, Recall, IoU)."""
-    accuracies, precisions, recalls, ious = [], [], [], []
+    """Calcula métricas de avaliação (Acurácia, Precisão, Recall, IoU, F1-Score)."""
+    accuracies, precisions, recalls, f1_scores, ious = [], [], [], [], []
     per_frame_results = []
 
     for filename in gt_images:
@@ -41,6 +41,7 @@ def compute_metrics(gt_images, predicted_images):
 
             # Ajusta dimensões se necessário
             if gt.shape != pred.shape:
+                print(f"⚠️ Aviso: Redimensionando máscara predita para {filename}")
                 pred = cv2.resize(pred, (gt.shape[1], gt.shape[0]), interpolation=cv2.INTER_NEAREST)
 
             # Converte para formato binário (0 e 1) para cálculos
@@ -55,6 +56,7 @@ def compute_metrics(gt_images, predicted_images):
             acc = accuracy_score(gt_flat, pred_flat)
             precision = precision_score(gt_flat, pred_flat, zero_division=1)
             recall = recall_score(gt_flat, pred_flat, zero_division=1)
+            f1 = f1_score(gt_flat, pred_flat, zero_division=1)
 
             intersection = np.logical_and(gt_bin, pred_bin).sum()
             union = np.logical_or(gt_bin, pred_bin).sum()
@@ -63,15 +65,17 @@ def compute_metrics(gt_images, predicted_images):
             accuracies.append(acc)
             precisions.append(precision)
             recalls.append(recall)
+            f1_scores.append(f1)
             ious.append(iou)
 
-            per_frame_results.append(f"{filename}: Acc={acc:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, IoU={iou:.4f}")
+            per_frame_results.append(f"{filename}: Acc={acc:.4f}, Precision={precision:.4f}, Recall={recall:.4f}, F1-Score={f1:.4f}, IoU={iou:.4f}")
 
     # Retorna as métricas médias e os resultados por frame
     return {
         "Accuracy": np.mean(accuracies) if accuracies else 0,
         "Precision": np.mean(precisions) if precisions else 0,
         "Recall": np.mean(recalls) if recalls else 0,
+        "F1-Score": np.mean(f1_scores) if f1_scores else 0,
         "IoU": np.mean(ious) if ious else 0
     }, per_frame_results
 
@@ -90,7 +94,7 @@ def save_results_to_file(metrics, per_frame_results, elapsed_time):
 
         f.write(f"\nTempo total de avaliação: {elapsed_time:.2f} segundos\n")
 
-    print(f"\nResultados salvos em: {results_file}")
+    print(f"\n✅ Resultados salvos em: {results_file}")
 
 def evaluate_segmentation(video_name):
     """Executa a avaliação comparando segmentações geradas com a ground truth."""
